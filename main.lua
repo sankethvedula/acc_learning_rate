@@ -3,6 +3,7 @@ require "optim"
 require "cunn"
 require "cutorch"
 mnist = require "mnist"
+require "MSEUpdatedCriteria"
 
 -- read data here
 
@@ -19,7 +20,7 @@ cmd:option('-lr',1e-4,'learning rate at t=0')
 cmd:option('-momentum',1e-4,'weight decay(SGD only)')
 cmd:option('-seed',111,'manualSeed set')
 cmd:option('-isCuda',true,'if true - use cuda')
-cmd:option('-batchSize',60,"batchSize for training")
+cmd:option('-batchSize',20,"batchSize for training")
 cmd:option('-nEpochs',5,"Number of epochs to train")
 cmd:text()
 opt = cmd:parse(arg)
@@ -32,12 +33,18 @@ local function read_data(isTrain)
   if isTrain then
     data = mnist.traindataset().data:float()
     labels = mnist.traindataset().label:float()
+    data_1 = torch.Tensor(torch.Tensor(60000,2,28,28))
   else
     data = mnist.testdataset().data:float()
     labels = mnist.testdataset().label:float()
+    data_1 = torch.Tensor(torch.Tensor(10000,2,28,28))
   end
   data:add(-127):div(128); -- center data around 0
 	data = data:view(data:size(1),1,data:size(2),data:size(3))
+  print(data:size())
+  data_1[{{},{2},{},{}}] = data
+  data_1[{{},{1},{},{}}] = data
+  data = data_1
   return data,labels
 end
 
@@ -65,9 +72,9 @@ local function create_net()
     model:add(nn.View(image_size*image_size))
     model:add(encoder)
     model:add(decoder)
-    model:add(nn.View(1,image_size,image_size))
+    model:add(nn.View(2,image_size,image_size))
 
-    local criterion = nn.MSECriterion()
+    local criterion = nn.MSEUpdatedCriteria()
     return model, criterion
 end
 
@@ -143,7 +150,7 @@ function train()
     }
 
     _, errs = optim.sgd(feval, params, optimConfig)
-    --print(errs[1])
+    print(errs[1])
     total_loss = total_loss + errs[1]
   end
 
